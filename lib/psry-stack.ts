@@ -35,27 +35,32 @@ export class PsryStack extends Stack {
       synthAction: SimpleSynthAction.standardNpmSynth({
         sourceArtifact,
         cloudAssemblyArtifact,
-        // buildCommand: 'npm run build',
+        buildCommand: 'npm run build',
       })
     });
 
-    // const bucket = new Bucket(this, "Bucket2", {});
-
-    // new Greetings(this, 'Greetings');
-    // pipeline.addApplicationStage(new Greetings(this, 'Greetings'), {})
+    pipeline.addApplicationStage(new PsrApplication(this, 'PsrApplication'), {})
   }
 }
 
-export class Greetings extends Stage {
+export class PsrApplication extends Stage {
   constructor(scope: Construct, id: string, props?: StageProps) {
     super(scope, id, props);
 
-    // const bucket = new Bucket(this, "Bucket2", {});
+    const grtStack = new GreetingStack(this, 'Greetings');
+  }
+}
+
+export class GreetingStack extends Stack {
+  constructor(scope: Construct, id: string, props?: StageProps) {
+    super(scope, id, props);
+
+    const bucket = new Bucket(this, "Bucket2", {});
 
 
     const code = Code.fromAsset("code/");
     const environment = {
-      // Bucket: bucket.bucketName,
+      Bucket: bucket.bucketName,
     };
 
     const api = new RestApi(this, "Apiv2");

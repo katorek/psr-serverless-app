@@ -24,10 +24,11 @@ export class PsryStack extends Stack {
       sourceAction: new codepipeline_actions.GitHubSourceAction({
         actionName: 'Github',
         output: sourceArtifact,
-        oauthToken: SecretValue.secretsManager('GITHUB_KATOREK_TOKEN'),
+        oauthToken: SecretValue.secretsManager('github_token'),
         trigger: codepipeline_actions.GitHubTrigger.POLL,
         owner: 'katorek',
-        repo: 'psr-serverless-app'
+        repo: 'psr-serverless-app',
+        branch: 'develop'
       }),
 
       synthAction: SimpleSynthAction.standardNpmSynth({
@@ -35,15 +36,9 @@ export class PsryStack extends Stack {
         cloudAssemblyArtifact,
         buildCommand: 'npm run build',
       })
-    })
+    });
 
-
-
-    //code
-
-
-
-    // The code that defines your stack goes here
+    pipeline.addApplicationStage(new Greetings(this, 'Greetiongs'), {})
   }
 }
 

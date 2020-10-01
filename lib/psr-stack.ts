@@ -1,6 +1,6 @@
 // import * as cdk from '@aws-cdk/core';
 import {AuthorizationType, LambdaIntegration, RestApi} from "@aws-cdk/aws-apigateway";
-import {Code, Function, Runtime} from "@aws-cdk/aws-lambda";
+import {Code, Function, FunctionProps, Runtime} from "@aws-cdk/aws-lambda";
 import {Bucket} from "@aws-cdk/aws-s3";
 import {CfnOutput, Construct, SecretValue, Stack, StackProps, Stage, StageProps} from '@aws-cdk/core';
 import * as codepipeline from '@aws-cdk/aws-codepipeline';
@@ -10,7 +10,7 @@ import {AttributeType, BillingMode, Table} from "@aws-cdk/aws-dynamodb";
 import {Resources} from "./resources";
 
 
-export class PsryStack extends Stack {
+export class PsrStack extends Stack {
     public readonly urlOutput: CfnOutput;
 
     constructor(scope: Construct, id: string, props?: StackProps) {
@@ -48,17 +48,27 @@ export class PsryStack extends Stack {
 export class PsrApplication extends Stage {
     constructor(scope: Construct, id: string, props?: StageProps) {
         super(scope, id, props);
-
-        const resStack = new InitResources(this, 'Resources');
-        new UploadFileStack(this, 'UploadFile', resStack.res)
+        new PsrApplicationStack(this, 'PsrApplication');
     }
 }
 
-export class InitResources extends Stack {
-    public res: Resources;
+export class PsrApplicationStack extends Stack {
+    private res: Resources;
+    private env: {};
 
-    constructor(scope: Construct, id: string, props?: StageProps) {
+    lambdaProps(code: Code, handlerName: string, environment: {}): FunctionProps {
+        return {
+            code: code,
+            handler: handlerName,
+            runtime: Runtime.PYTHON_3_7,
+            memorySize: 128,
+            environment
+        }
+    }
+
+    constructor(scope: Construct, id: string, props?: StackProps) {
         super(scope, id, props);
+
         this.res = {
             bucket: new Bucket(this, "PsrBucket"),
             api: new RestApi(this, "PsrApi"),
@@ -70,32 +80,25 @@ export class InitResources extends Stack {
                 },
                 billingMode: BillingMode.PAY_PER_REQUEST
             }),
-            environment: {
-                Bucket: this.res.bucket.bucketName,
-                Table: this.res.table.tableName
-            }
         }
+        this.env = {
+            Bucket: this.res.bucket.bucketName,
+            Table: this.res.table.tableName
+        }
+
+        this.initUploadStack()
     }
-}
 
-export class UploadFileStack extends Stack {
-    constructor(scope: Construct, id: string, res: Resources, props?: StageProps) {
-        super(scope, id, props);
+    initUploadStack() {
+        const f_upload = new Function(this, "UploadLambda", this.lambdaProps(this.res.code, "psr.upload", this.env));
+        const res_upload = this.res.api.root.addResource('upload');
 
-        const f_upload = new Function(this, "UploadLambda", {
-            code: res.code,
-            handler: "psr.hello",
-            runtime: Runtime.PYTHON_3_7,
-            memorySize: 128,
-            environment: res.environment
-        });
-
-        res.api.root.addResource('upload').addMethod('POST', new LambdaIntegration(f_upload), {
+        res_upload.addMethod('POST', new LambdaIntegration(f_upload), {
             authorizationType: AuthorizationType.NONE
         });
 
-        res.table.grantWriteData(f_upload);
-        res.bucket.grantWrite(f_upload);
+        this.res.table.grantWriteData(f_upload);
+        this.res.bucket.grantWrite(f_upload);
     }
 }
 

@@ -8,5 +8,4 @@ export class Resources {
     api: RestApi;
     code: Code;
     table: Table;
-    environment: {}
 }

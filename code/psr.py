@@ -16,7 +16,7 @@ table = dynamodb.Table(os.getenv("Table"))
 def get_public_url(bucket, key):
     return "https://s3.us-east-1.amazonaws.com/{}/{}".format(bucket, key)
 
-def upload_image(event, context):
+def upload(event, context):
     uid = str(uuid.uuid4()) + ".png"
 
     request_body = json.loads(event['body'], strict=False)

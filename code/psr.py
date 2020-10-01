@@ -9,7 +9,7 @@ bucket = os.getenv("Bucket")
 
 s3client = boto3.client("s3")
 dynamodb = boto3.resource("dynamodb")
-rekog = boto3.client("rekognition")
+# rekog = boto3.client("rekognition")
 
 table = dynamodb.Table(os.getenv("Table"))
 

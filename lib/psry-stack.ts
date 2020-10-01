@@ -6,6 +6,7 @@ import {CfnOutput, Construct, SecretValue, Stack, StackProps, Stage, StageProps}
 import * as codepipeline from '@aws-cdk/aws-codepipeline';
 import * as codepipeline_actions from '@aws-cdk/aws-codepipeline-actions';
 import {CdkPipeline, SimpleSynthAction} from "@aws-cdk/pipelines";
+import {CodeBuildAction} from "@aws-cdk/aws-codepipeline-actions";
 
 
 export class PsryStack extends Stack {
@@ -34,7 +35,9 @@ export class PsryStack extends Stack {
       synthAction: SimpleSynthAction.standardNpmSynth({
         sourceArtifact,
         cloudAssemblyArtifact,
+        installCommand: 'npm install -g aws-cdk',
         buildCommand: 'npm run build',
+        synthCommand: 'cdk synth'
       })
     });
 

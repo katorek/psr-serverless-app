@@ -35,13 +35,14 @@ export class PsryStack extends Stack {
       synthAction: SimpleSynthAction.standardNpmSynth({
         sourceArtifact,
         cloudAssemblyArtifact,
-        installCommand: 'npm install -g aws-cdk',
-        buildCommand: 'npm run build',
-        synthCommand: 'cdk synth'
+        // buildCommand: 'npm run build',
       })
     });
 
-    pipeline.addApplicationStage(new Greetings(this, 'Greetiongs'), {})
+    // const bucket = new Bucket(this, "Bucket2", {});
+
+    // new Greetings(this, 'Greetings');
+    // pipeline.addApplicationStage(new Greetings(this, 'Greetings'), {})
   }
 }
 
@@ -49,12 +50,12 @@ export class Greetings extends Stage {
   constructor(scope: Construct, id: string, props?: StageProps) {
     super(scope, id, props);
 
-    const bucket = new Bucket(this, "Bucket2", {});
+    // const bucket = new Bucket(this, "Bucket2", {});
 
 
     const code = Code.fromAsset("code/");
     const environment = {
-      Bucket: bucket.bucketName,
+      // Bucket: bucket.bucketName,
     };
 
     const api = new RestApi(this, "Apiv2");

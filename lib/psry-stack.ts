@@ -6,89 +6,96 @@ import {CfnOutput, Construct, SecretValue, Stack, StackProps, Stage, StageProps}
 import * as codepipeline from '@aws-cdk/aws-codepipeline';
 import * as codepipeline_actions from '@aws-cdk/aws-codepipeline-actions';
 import {CdkPipeline, SimpleSynthAction} from "@aws-cdk/pipelines";
-import {CodeBuildAction} from "@aws-cdk/aws-codepipeline-actions";
+import {AttributeType, BillingMode, Table} from "@aws-cdk/aws-dynamodb";
+import {Resources} from "./resources";
 
 
 export class PsryStack extends Stack {
-  public readonly urlOutput: CfnOutput;
-  constructor(scope: Construct, id: string, props?: StackProps) {
-    super(scope, id, props);
+    public readonly urlOutput: CfnOutput;
 
-    // pipeline
-    const sourceArtifact = new codepipeline.Artifact();
-    const cloudAssemblyArtifact = new codepipeline.Artifact();
+    constructor(scope: Construct, id: string, props?: StackProps) {
+        super(scope, id, props);
 
-    const pipeline = new CdkPipeline(this, 'Pipeline', {
-      pipelineName: 'PsryPipeline',
-      cloudAssemblyArtifact,
+        // pipeline
+        const sourceArtifact = new codepipeline.Artifact();
+        const cloudAssemblyArtifact = new codepipeline.Artifact();
 
-      sourceAction: new codepipeline_actions.GitHubSourceAction({
-        actionName: 'Github',
-        output: sourceArtifact,
-        oauthToken: SecretValue.secretsManager('github_token'),
-        trigger: codepipeline_actions.GitHubTrigger.POLL,
-        owner: 'katorek',
-        repo: 'psr-serverless-app',
-        branch: 'develop'
-      }),
+        const pipeline = new CdkPipeline(this, 'Pipeline', {
+            pipelineName: 'PsryPipeline',
+            cloudAssemblyArtifact,
 
-      synthAction: SimpleSynthAction.standardNpmSynth({
-        sourceArtifact,
-        cloudAssemblyArtifact,
-        buildCommand: 'npm run build',
-      })
-    });
+            sourceAction: new codepipeline_actions.GitHubSourceAction({
+                actionName: 'Github',
+                output: sourceArtifact,
+                oauthToken: SecretValue.secretsManager('github_token'),
+                trigger: codepipeline_actions.GitHubTrigger.POLL,
+                owner: 'katorek',
+                repo: 'psr-serverless-app',
+                branch: 'develop'
+            }),
 
-    pipeline.addApplicationStage(new PsrApplication(this, 'PsrApplication'), {})
-  }
+            synthAction: SimpleSynthAction.standardNpmSynth({
+                sourceArtifact,
+                cloudAssemblyArtifact,
+                buildCommand: 'npm run build',
+            })
+        });
+
+        pipeline.addApplicationStage(new PsrApplication(this, 'PsrApplication'), {})
+    }
 }
 
 export class PsrApplication extends Stage {
-  constructor(scope: Construct, id: string, props?: StageProps) {
-    super(scope, id, props);
+    constructor(scope: Construct, id: string, props?: StageProps) {
+        super(scope, id, props);
 
-    const grtStack = new GreetingStack(this, 'Greetings');
-  }
+        const resStack = new InitResources(this, 'Resources');
+        new UploadFileStack(this, 'UploadFile', resStack.res)
+    }
 }
 
-export class GreetingStack extends Stack {
-  constructor(scope: Construct, id: string, props?: StageProps) {
-    super(scope, id, props);
+export class InitResources extends Stack {
+    public res: Resources;
 
-    const bucket = new Bucket(this, "Bucket2", {});
-
-
-    const code = Code.fromAsset("code/");
-    const environment = {
-      Bucket: bucket.bucketName,
-    };
-
-    const api = new RestApi(this, "Apiv2");
-    const res_helloworld = api.root.addResource("hello")
-    const res_greetings = api.root.addResource("greetings")
-
-    const f_helloworld = new Function(this, "LambdaHello", {
-      code,
-      handler: "example.hello",
-      runtime: Runtime.PYTHON_3_7,
-      memorySize: 128,
-      environment
-    });
-
-    res_helloworld.addMethod("GET", new LambdaIntegration(f_helloworld), {
-      authorizationType: AuthorizationType.NONE
-    });
-
-    const f_greetings = new Function(this, "LambdaGreetings", {
-      code,
-      handler: "example.greetings",
-      runtime: Runtime.PYTHON_3_7,
-      memorySize: 128,
-      environment
-    });
-    res_greetings.addMethod("GET", new LambdaIntegration(f_greetings), {
-      authorizationType: AuthorizationType.NONE
-    });
-
-  }
+    constructor(scope: Construct, id: string, props?: StageProps) {
+        super(scope, id, props);
+        this.res = {
+            bucket: new Bucket(this, "PsrBucket"),
+            api: new RestApi(this, "PsrApi"),
+            code: Code.fromAsset("code/"),
+            table: new Table(this, "Table", {
+                partitionKey: {
+                    name: "ID",
+                    type: AttributeType.STRING
+                },
+                billingMode: BillingMode.PAY_PER_REQUEST
+            }),
+            environment: {
+                Bucket: this.res.bucket.bucketName,
+                Table: this.res.table.tableName
+            }
+        }
+    }
 }
+
+export class UploadFileStack extends Stack {
+    constructor(scope: Construct, id: string, res: Resources, props?: StageProps) {
+        super(scope, id, props);
+
+        const f_upload = new Function(this, "UploadLambda", {
+            code: res.code,
+            handler: "psr.hello",
+            runtime: Runtime.PYTHON_3_7,
+            memorySize: 128,
+            environment: res.environment
+        });
+
+        res.api.root.addResource('upload').addMethod('POST', new LambdaIntegration(f_upload), {
+            authorizationType: AuthorizationType.NONE
+        });
+
+        res.table.grantWriteData(f_upload);
+        res.bucket.grantWrite(f_upload);
+    }
+}
+

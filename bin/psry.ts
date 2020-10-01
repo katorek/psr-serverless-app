@@ -6,7 +6,7 @@ import {PsryStack} from '../lib/psry-stack';
 const app = new cdk.App();
 new PsryStack(app, 'PsryStack', {
     env: {
-        account: '65882485364',
+        account: '658824853647',
         region: 'us-east-1'
     }
 });

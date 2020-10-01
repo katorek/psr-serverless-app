@@ -9,3 +9,14 @@ def hello(event, context):
         "body": json.dumps(body),
         "statusCode": 200
     }
+
+def greetings(event, context):
+    body = {
+        "message": "Greetings !",
+        "event": event,
+        "context": context
+    }
+    return {
+        "body": json.dumps(body),
+        "statusCode": 200
+    }

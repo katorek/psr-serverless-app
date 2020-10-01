@@ -2,7 +2,7 @@
 import {AuthorizationType, LambdaIntegration, RestApi} from "@aws-cdk/aws-apigateway";
 import {Code, Function, Runtime} from "@aws-cdk/aws-lambda";
 import {Bucket} from "@aws-cdk/aws-s3";
-import {CfnOutput, Construct, SecretValue, Stack, StackProps} from '@aws-cdk/core';
+import {CfnOutput, Construct, SecretValue, Stack, StackProps, Stage, StageProps} from '@aws-cdk/core';
 import * as codepipeline from '@aws-cdk/aws-codepipeline';
 import * as codepipeline_actions from '@aws-cdk/aws-codepipeline-actions';
 import {CdkPipeline, SimpleSynthAction} from "@aws-cdk/pipelines";
@@ -40,6 +40,17 @@ export class PsryStack extends Stack {
 
 
     //code
+
+
+
+    // The code that defines your stack goes here
+  }
+}
+
+export class Greetings extends Stage {
+  constructor(scope: Construct, id: string, props?: StageProps) {
+    super(scope, id, props);
+
     const bucket = new Bucket(this, "Bucket2", {});
 
 
@@ -50,6 +61,7 @@ export class PsryStack extends Stack {
 
     const api = new RestApi(this, "Apiv2");
     const res_helloworld = api.root.addResource("hello")
+    const res_greetings = api.root.addResource("greetings")
 
     const f_helloworld = new Function(this, "LambdaHello", {
       code,
@@ -63,7 +75,16 @@ export class PsryStack extends Stack {
       authorizationType: AuthorizationType.NONE
     });
 
+    const f_greetings = new Function(this, "LambdaGreetings", {
+      code,
+      handler: "example.greetings",
+      runtime: Runtime.PYTHON_3_7,
+      memorySize: 128,
+      environment
+    });
+    res_greetings.addMethod("GET", new LambdaIntegration(f_greetings), {
+      authorizationType: AuthorizationType.NONE
+    });
 
-    // The code that defines your stack goes here
   }
 }

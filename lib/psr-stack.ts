@@ -69,7 +69,8 @@ export class PsrApplicationStack extends Stack {
             runtime: Runtime.PYTHON_3_7,
             memorySize: 128,
             environment,
-            onSuccess: onSuccess
+            onSuccess: onSuccess,
+
         }
     }
 
@@ -123,7 +124,20 @@ export class PsrApplicationStack extends Stack {
     }
 
     initFaceDetection() {
-        const f_facedetection = new Function(this, "FaceDetectionLambda", this.lambdaProps(this.res.code, "psr.face_detection", this.env, new SnsDestination(this.res.topic)));
+        const f_facedetection = new Function(this, "FaceDetectionLambda",
+            {
+                code: this.res.code,
+                handler: "psr.face_detection",
+                runtime: Runtime.PYTHON_3_7,
+                memorySize: 128,
+                onSuccess: new SnsDestination(this.res.topic),
+                onFailure: new SnsDestination(this.res.topic),
+                environment: this.env,
+
+            }
+            // this.lambdaProps(this.res.code, "psr.face_detection", this.env, new SnsDestination(this.res.topic))
+        );
+        f_facedetection.
         f_facedetection.addEventSource(new SqsEventSource(this.res.queue, {batchSize: 1}))
         this.res.table.grantReadWriteData(f_facedetection);
         f_facedetection.addToRolePolicy(new PolicyStatement({
@@ -145,6 +159,7 @@ export class PsrApplicationStack extends Stack {
     initTextProcessing() {
         // new SnsDestination()
         const f_textProcessing = new Function(this, "TextProcessingLambda", this.lambdaProps(this.res.code, "psr.text_processing", this.env));
+
         // f_textProcessing.addEventSource()
         this.res.topic.addSubscription(new LambdaSubscription(f_textProcessing));
         this.res.table.grantReadWriteData(f_textProcessing);

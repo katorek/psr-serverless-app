@@ -137,7 +137,7 @@ export class PsrApplicationStack extends Stack {
             }
             // this.lambdaProps(this.res.code, "psr.face_detection", this.env, new SnsDestination(this.res.topic))
         );
-        f_facedetection.
+        // f_facedetection.
         f_facedetection.addEventSource(new SqsEventSource(this.res.queue, {batchSize: 1}))
         this.res.table.grantReadWriteData(f_facedetection);
         f_facedetection.addToRolePolicy(new PolicyStatement({

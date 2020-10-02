@@ -129,23 +129,14 @@ def face_detection(event, context):
                     }
                 )
 
-                sns.publish(
-                    TopicArn=topic,
-                    Message={
-                        "TopicArn":topic,
-                        "Key": key,
-                        "Bucket": bucket
-                    },
-                )
-
-                sns.publish(
-                    TopicArn=topicArn,
-                    Message={
-                        "TopicArn":topicArn,
-                        "Key": key,
-                        "Bucket": bucket
-                    },
-                )
+                # r = sns.publish(
+                #     TopicArn=topicArn,
+                #     Message=json.dumps({
+                #         "Topic": topic,
+                #         "Key": key,
+                #         "Bucket": bucket
+                #     })
+                # )
 
     except KeyError as err:
         print("Error: {}".format(err))

@@ -1,6 +1,6 @@
 // import * as cdk from '@aws-cdk/core';
 import {AuthorizationType, LambdaIntegration, RestApi} from "@aws-cdk/aws-apigateway";
-import {Code, EventInvokeConfig, Function, FunctionProps, Runtime} from "@aws-cdk/aws-lambda";
+import {Code, EventInvokeConfig, Function, FunctionProps, IDestination, Runtime} from "@aws-cdk/aws-lambda";
 import {Bucket} from "@aws-cdk/aws-s3";
 import {Aws, CfnOutput, Construct, Duration, SecretValue, Stack, StackProps, Stage, StageProps} from '@aws-cdk/core';
 import * as codepipeline from '@aws-cdk/aws-codepipeline';
@@ -62,13 +62,14 @@ export class PsrApplicationStack extends Stack {
     private res: Resources;
     private env: {};
 
-    lambdaProps(code: Code, handlerName: string, environment: {}): FunctionProps {
+    lambdaProps(code: Code, handlerName: string, environment: {}, onSuccess?: IDestination): FunctionProps {
         return {
             code: code,
             handler: handlerName,
             runtime: Runtime.PYTHON_3_7,
             memorySize: 128,
-            environment
+            environment,
+            onSuccess: onSuccess
         }
     }
 
@@ -122,21 +123,23 @@ export class PsrApplicationStack extends Stack {
     }
 
     initFaceDetection() {
-        const f_facedetection = new Function(this, "FaceDetectionLambda", this.lambdaProps(this.res.code, "psr.face_detection", this.env));
+        const f_facedetection = new Function(this, "FaceDetectionLambda", this.lambdaProps(this.res.code, "psr.face_detection", this.env, new SnsDestination(this.res.topic)));
         f_facedetection.addEventSource(new SqsEventSource(this.res.queue, {batchSize: 1}))
         this.res.table.grantReadWriteData(f_facedetection);
-        f_facedetection.addToRolePolicy(
-            new PolicyStatement({
-                actions: ["rekognition:DetectFaces"],
-                resources: ["*"]
-            })
-        );
+        f_facedetection.addToRolePolicy(new PolicyStatement({
+            actions: ["rekognition:DetectFaces"],
+            resources: ["*"]
+        }));
+        f_facedetection.addToRolePolicy(new PolicyStatement({
+            actions: ["sns:Publish"],
+            resources: ["*"]
+        }));
         this.res.topic.grantPublish(f_facedetection);
-        new EventInvokeConfig(this,  'SnsPublish', {
-            function: f_facedetection,
-            onSuccess: new SnsDestination(this.res.topic),
-            onFailure: new SnsDestination(this.res.topic)
-        });
+        // new EventInvokeConfig(this, 'SnsPublish', {
+        //     function: f_facedetection,
+        //     onSuccess: new SnsDestination(this.res.topic),
+        //     onFailure: new SnsDestination(this.res.topic)
+        // });
     }
 
     initTextProcessing() {

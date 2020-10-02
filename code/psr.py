@@ -132,6 +132,16 @@ def face_detection(event, context):
                 sns.publish(
                     TopicArn=topic,
                     Message={
+                        "TopicArn":topic,
+                        "Key": key,
+                        "Bucket": bucket
+                    },
+                )
+
+                sns.publish(
+                    TopicArn=topicArn,
+                    Message={
+                        "TopicArn":topicArn,
                         "Key": key,
                         "Bucket": bucket
                     },

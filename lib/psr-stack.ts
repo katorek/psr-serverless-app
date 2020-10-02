@@ -1,6 +1,6 @@
 // import * as cdk from '@aws-cdk/core';
 import {AuthorizationType, LambdaIntegration, RestApi} from "@aws-cdk/aws-apigateway";
-import {Code, Function, FunctionProps, Runtime} from "@aws-cdk/aws-lambda";
+import {Code, EventInvokeConfig, Function, FunctionProps, Runtime} from "@aws-cdk/aws-lambda";
 import {Bucket} from "@aws-cdk/aws-s3";
 import {Aws, CfnOutput, Construct, Duration, SecretValue, Stack, StackProps, Stage, StageProps} from '@aws-cdk/core';
 import * as codepipeline from '@aws-cdk/aws-codepipeline';
@@ -87,6 +87,7 @@ export class PsrApplicationStack extends Stack {
 
         this.initUploadStack();
         this.initFaceDetection();
+        this.initTextProcessing();
     }
 
     initResources(): Resources {
@@ -131,11 +132,15 @@ export class PsrApplicationStack extends Stack {
             })
         );
         this.res.topic.grantPublish(f_facedetection);
-        // this.res.topic.p
-        // f_facedetection.add
+        new EventInvokeConfig(this,  'SnsPublish', {
+            function: f_facedetection,
+            onSuccess: new SnsDestination(this.res.topic),
+            onFailure: new SnsDestination(this.res.topic)
+        });
     }
 
     initTextProcessing() {
+        // new SnsDestination()
         const f_textProcessing = new Function(this, "TextProcessingLambda", this.lambdaProps(this.res.code, "psr.text_processing", this.env));
         // f_textProcessing.addEventSource()
         this.res.topic.addSubscription(new LambdaSubscription(f_textProcessing));

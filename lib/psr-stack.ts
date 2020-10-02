@@ -73,7 +73,20 @@ export class PsrApplicationStack extends Stack {
     constructor(scope: Construct, id: string, props?: StackProps) {
         super(scope, id, props);
 
-        this.res = {
+        this.res = this.initResources();
+        this.env = {
+            Bucket: this.res.bucket.bucketName,
+            Table: this.res.table.tableName
+        }
+
+        this.res.bucket.addObjectCreatedNotification(new SqsDestination(this.res.queue));
+
+        this.initUploadStack();
+        this.initFaceDetection();
+    }
+
+    initResources(): Resources {
+        return {
             bucket: new Bucket(this, "PsrBucket"),
             api: new RestApi(this, "PsrApi"),
             code: Code.fromAsset("code/"),
@@ -88,15 +101,6 @@ export class PsrApplicationStack extends Stack {
                 billingMode: BillingMode.PAY_PER_REQUEST
             }),
         }
-        this.env = {
-            Bucket: this.res.bucket.bucketName,
-            Table: this.res.table.tableName
-        }
-
-        this.res.bucket.addObjectCreatedNotification(new SqsDestination(this.res.queue));
-
-        this.initUploadStack();
-        this.initFaceDetection();
     }
 
     initUploadStack() {

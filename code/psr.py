@@ -35,7 +35,7 @@ def upload(event, context):
     table.put_item(Item={
         "ID": uid,
         "FileName": request_body["name"],
-        "ProcessStage": "uploaded",
+        "ProcessStage": "1 -> upload",
         "URL": get_public_url(bucket, uid)
     })
 
@@ -50,20 +50,73 @@ def upload(event, context):
     return response
 
 
+emotions_threshold = 0.5
+gender_confidence = 0.8
+confidence = {
+    'Smile': 80.0,
+    'Gender': 80.0,
+    'EyesOpen': 70.0,
+    'Beard': 75.0
+}
+
+
 def face_detection(event, context):
+    def compress_result(faceObjArr):
+        def get_property(face_details, property):
+            if face_details[property]['Confidence'] > confidence[property]:
+                return face_details[property]['Value']
+            return 'Unknown'
+
+        def get_emotions(face_details):
+            result = []
+            for emotion in face_details['Emotions']:
+                if emotion['Confidence'] > emotions_threshold:
+                    result.append(emotion['Type'])
+            return result
+
+        face_details = faceObjArr['FaceDetails']
+        try:
+
+            response = {"Emotions": get_emotions(face_details)}
+            for key in confidence:
+                response[key] = get_property(face_details, key)
+
+            return response
+        except:
+            return "Error processing"
+
     print(event)
-    print(context)
 
-    for j in event["Records"]:
-        records = json.loads(j["body"])
-        for i in records["Records"]:
-            bucket = i["s3"]["bucket"]["name"]
-            key = i["s3"]["object"]["key"]
+    try:
+        for j in event["Records"]:
+            records = json.loads(j["body"])
+            print('"records:" {}'.format(records))
+            for i in records["Records"]:
+                bucket = i["s3"]["bucket"]["name"]
+                key = i["s3"]["object"]["key"]
 
-            response = rekog.detect_faces(
-                Image={'S3Object': {'Bucket': bucket, 'Name': photo}},
-                Attributes=['ALL']
-            )
-            print("FaceDetected: {}".format(response))
+                result = rekog.detect_faces(
+                    Image={'S3Object': {'Bucket': bucket, 'Name': key}},
+                    Attributes=['ALL']
+                )
+                print("'faceDetected': {}".format(result))
+                compressed = compress_result(result)
+                print("'compressed': {}".format(compressed))
+
+                table.put_item(
+                    Key={
+                        "ID": key
+                    },
+                    UpdateExpression="set #s = :r, ProcessStage = :s",
+                    ExpressionAttributeValues={
+                        ":r": compressed,
+                        ":s": "2 -> face_detected",
+                    },
+                    ExpressionAttributeNames={
+                        "#s": "FaceDetection"
+                    }
+                )
+    except KeyError as err:
+        print("Error: {}".format(err))
 
     return True

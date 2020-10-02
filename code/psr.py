@@ -6,7 +6,8 @@ import base64
 import uuid
 
 bucket = os.getenv("Bucket")
-prefix = os.getenv('Prefix')
+topic = os.getenv('Topic')
+topicArn = os.getenv('TopicArn')
 
 s3client = boto3.client("s3")
 dynamodb = boto3.resource("dynamodb")
@@ -16,13 +17,21 @@ translate = boto3.client(service_name='translate', use_ssl=True)
 
 table = dynamodb.Table(os.getenv("Table"))
 
+emotions_threshold = 0.5
+confidence = {
+    'Smile': 80.0,
+    'Gender': 80.0,
+    'EyesOpen': 70.0,
+    'Beard': 75.0
+}
+
 
 def get_public_url(bucket, key):
     return "https://s3.us-east-1.amazonaws.com/{}/{}".format(bucket, key)
 
 
 def upload(event, context):
-    uid = prefix + str(uuid.uuid4()) + ".png"
+    uid = str(uuid.uuid4()) + ".png"
 
     request_body = json.loads(event['body'], strict=False)
 
@@ -49,17 +58,7 @@ def upload(event, context):
         "statusCode": 200,
         "body": json.dumps(body)
     }
-
     return response
-
-
-emotions_threshold = 0.5
-confidence = {
-    'Smile': 80.0,
-    'Gender': 80.0,
-    'EyesOpen': 70.0,
-    'Beard': 75.0
-}
 
 
 def face_detection(event, context):
@@ -129,9 +128,23 @@ def face_detection(event, context):
                         "#s": "FaceDetection"
                     }
                 )
+
+                sns.publish(
+                    TopicArn=topic,
+                    Message={
+                        "Key": key,
+                        "Bucket": bucket
+                    },
+                )
+
     except KeyError as err:
         print("Error: {}".format(err))
 
-    # sns
+    return True
 
+
+def text_processing(event, context):
+    print("text_processing")
+    print(event)
+    print(context)
     return True

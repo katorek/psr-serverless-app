@@ -13,6 +13,8 @@ import {Queue} from "@aws-cdk/aws-sqs";
 import {SqsDestination} from "@aws-cdk/aws-s3-notifications"
 import {PolicyStatement} from "@aws-cdk/aws-iam";
 import * as sns from '@aws-cdk/aws-sns';
+import {SnsDestination} from "@aws-cdk/aws-lambda-destinations";
+import {LambdaSubscription} from "@aws-cdk/aws-sns-subscriptions";
 
 export class PsrStack extends Stack {
     public readonly urlOutput: CfnOutput;
@@ -77,7 +79,8 @@ export class PsrApplicationStack extends Stack {
         this.env = {
             Bucket: this.res.bucket.bucketName,
             Table: this.res.table.tableName,
-            Prefix: 'ala_ma_kota__'
+            Topic: this.res.topic.topicName,
+            TopicArn: this.res.topic.topicArn,
         }
 
         this.res.bucket.addObjectCreatedNotification(new SqsDestination(this.res.queue));
@@ -102,7 +105,6 @@ export class PsrApplicationStack extends Stack {
                 billingMode: BillingMode.PAY_PER_REQUEST
             }),
             topic: new sns.Topic(this, 'PsrTopic')
-            // sns: new Aws.
         }
     }
 
@@ -131,6 +133,13 @@ export class PsrApplicationStack extends Stack {
         this.res.topic.grantPublish(f_facedetection);
         // this.res.topic.p
         // f_facedetection.add
+    }
+
+    initTextProcessing() {
+        const f_textProcessing = new Function(this, "TextProcessingLambda", this.lambdaProps(this.res.code, "psr.text_processing", this.env));
+        // f_textProcessing.addEventSource()
+        this.res.topic.addSubscription(new LambdaSubscription(f_textProcessing));
+        this.res.table.grantReadWriteData(f_textProcessing);
     }
 }
 

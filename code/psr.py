@@ -6,10 +6,13 @@ import base64
 import uuid
 
 bucket = os.getenv("Bucket")
+prefix = os.getenv('Prefix')
 
 s3client = boto3.client("s3")
 dynamodb = boto3.resource("dynamodb")
 rekog = boto3.client("rekognition")
+sns = boto3.client('sns')
+translate = boto3.client(service_name='translate', use_ssl=True)
 
 table = dynamodb.Table(os.getenv("Table"))
 
@@ -19,7 +22,7 @@ def get_public_url(bucket, key):
 
 
 def upload(event, context):
-    uid = str(uuid.uuid4()) + ".png"
+    uid = prefix + str(uuid.uuid4()) + ".png"
 
     request_body = json.loads(event['body'], strict=False)
 
@@ -62,6 +65,11 @@ confidence = {
 def face_detection(event, context):
     def compress_result(faceObjArr):
         def get_property(face_details, property):
+            print("\tget_property property: \t{}, "
+                  "face_details[prop]: \t{} "
+                  "confidence[prop]: \t{}".format(property,
+                                                  face_details[property],
+                                                  confidence[property]))
             if face_details[property]['Confidence'] > confidence[property]:
                 return face_details[property]['Value']
             return 'Unknown'
@@ -77,12 +85,13 @@ def face_detection(event, context):
 
         output = []
         for face in face_details:
-            pprint.pprint(face)
+            print("'face': {}".format(face))
+            print('confidence ', confidence)
             f = {}
             try:
                 f = {"Emotions": get_emotions(face)}
                 for key in confidence:
-                    f[key] = get_property(face_details, key)
+                    f[key] = get_property(face, key)
             except:
                 f['err'] = 'Error in processing face'
             output.append(f)
@@ -107,7 +116,7 @@ def face_detection(event, context):
                 compressed = compress_result(result)
                 print("'compressed': {}".format(compressed))
 
-                table.put_item(
+                table.update_item(
                     Key={
                         "ID": key
                     },
@@ -122,5 +131,7 @@ def face_detection(event, context):
                 )
     except KeyError as err:
         print("Error: {}".format(err))
+
+    # sns
 
     return True

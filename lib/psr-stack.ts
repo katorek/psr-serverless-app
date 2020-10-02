@@ -2,7 +2,7 @@
 import {AuthorizationType, LambdaIntegration, RestApi} from "@aws-cdk/aws-apigateway";
 import {Code, Function, FunctionProps, Runtime} from "@aws-cdk/aws-lambda";
 import {Bucket} from "@aws-cdk/aws-s3";
-import {CfnOutput, Construct, Duration, SecretValue, Stack, StackProps, Stage, StageProps} from '@aws-cdk/core';
+import {Aws, CfnOutput, Construct, Duration, SecretValue, Stack, StackProps, Stage, StageProps} from '@aws-cdk/core';
 import * as codepipeline from '@aws-cdk/aws-codepipeline';
 import * as codepipeline_actions from '@aws-cdk/aws-codepipeline-actions';
 import {CdkPipeline, SimpleSynthAction} from "@aws-cdk/pipelines";
@@ -12,7 +12,7 @@ import {SqsEventSource} from "@aws-cdk/aws-lambda-event-sources";
 import {Queue} from "@aws-cdk/aws-sqs";
 import {SqsDestination} from "@aws-cdk/aws-s3-notifications"
 import {PolicyStatement} from "@aws-cdk/aws-iam";
-
+import * as sns from '@aws-cdk/aws-sns';
 
 export class PsrStack extends Stack {
     public readonly urlOutput: CfnOutput;
@@ -76,7 +76,8 @@ export class PsrApplicationStack extends Stack {
         this.res = this.initResources();
         this.env = {
             Bucket: this.res.bucket.bucketName,
-            Table: this.res.table.tableName
+            Table: this.res.table.tableName,
+            Prefix: 'ala_ma_kota__'
         }
 
         this.res.bucket.addObjectCreatedNotification(new SqsDestination(this.res.queue));
@@ -100,6 +101,8 @@ export class PsrApplicationStack extends Stack {
                 },
                 billingMode: BillingMode.PAY_PER_REQUEST
             }),
+            topic: new sns.Topic(this, 'PsrTopic')
+            // sns: new Aws.
         }
     }
 
@@ -125,6 +128,9 @@ export class PsrApplicationStack extends Stack {
                 resources: ["*"]
             })
         );
+        this.res.topic.grantPublish(f_facedetection);
+        // this.res.topic.p
+        // f_facedetection.add
     }
 }
 

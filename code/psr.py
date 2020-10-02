@@ -51,7 +51,6 @@ def upload(event, context):
 
 
 emotions_threshold = 0.5
-gender_confidence = 0.8
 confidence = {
     'Smile': 80.0,
     'Gender': 80.0,
@@ -75,15 +74,20 @@ def face_detection(event, context):
             return result
 
         face_details = faceObjArr['FaceDetails']
-        try:
 
-            response = {"Emotions": get_emotions(face_details)}
-            for key in confidence:
-                response[key] = get_property(face_details, key)
+        output = []
+        for face in face_details:
+            pprint.pprint(face)
+            f = {}
+            try:
+                f = {"Emotions": get_emotions(face)}
+                for key in confidence:
+                    f[key] = get_property(face_details, key)
+            except:
+                f['err'] = 'Error in processing face'
+            output.append(f)
 
-            return response
-        except:
-            return "Error processing"
+        return output
 
     print(event)
 

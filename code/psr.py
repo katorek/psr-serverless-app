@@ -6,9 +6,9 @@ import base64
 import uuid
 
 bucket = os.getenv("Bucket")
-topic = os.getenv('Topic')
 topicArn = os.getenv('TopicArn')
 
+comprehend = boto3.client('comprehend')
 s3client = boto3.client("s3")
 dynamodb = boto3.resource("dynamodb")
 rekog = boto3.client("rekognition")
@@ -17,6 +17,7 @@ translate = boto3.client(service_name='translate', use_ssl=True)
 
 table = dynamodb.Table(os.getenv("Table"))
 
+text_recognition_confidence = 0.7
 emotions_threshold = 0.5
 confidence = {
     'Smile': 80.0,
@@ -96,9 +97,6 @@ def face_detection(event, context):
             output.append(f)
 
         return output
-
-    print(event)
-
     try:
         for j in event["Records"]:
             records = json.loads(j["body"])
@@ -129,14 +127,14 @@ def face_detection(event, context):
                     }
                 )
 
-                # r = sns.publish(
-                #     TopicArn=topicArn,
-                #     Message=json.dumps({
-                #         "Topic": topic,
-                #         "Key": key,
-                #         "Bucket": bucket
-                #     })
-                # )
+                r = sns.publish(
+                    TopicArn=topicArn,
+                    Message=json.dumps({
+                        "Topic": topic,
+                        "Key": key,
+                        "Bucket": bucket
+                    })
+                )
 
     except KeyError as err:
         print("Error: {}".format(err))
@@ -144,8 +142,46 @@ def face_detection(event, context):
     return True
 
 
+
 def text_processing(event, context):
-    print("text_processing")
+    def getText(textDetection):
+        if textDetection['Type'] == 'Line' and textDetection['Confidence'] > text_recognition_confidence:
+            return textDetection['DetectedText']
+        return None
+
+    for j in event["Records"]:
+        records = json.loads(j["body"])
+        print('"records:" {}'.format(records))
+        for i in records["Records"]:
+            bucket = i["s3"]["bucket"]["name"]
+            key = i["s3"]["object"]["key"]
+
+            textDetections = rekog.detect_text(
+                Image={'S3Object': {'Bucket': bucket, 'Name': key}}
+            )
+
+            result=''
+            for t in textDetections:
+                result += getText(t) + ' '
+
+            table.update_item(
+                Key={
+                    "ID": key
+                },
+                UpdateExpression="set #s = :r, ProcessStage = :s",
+                ExpressionAttributeValues={
+                    ":r": result,
+                    ":s": "3 -> text_processed",
+                },
+                ExpressionAttributeNames={
+                    "#s": "ImageText"
+                }
+            )
+
+    return True
+
+def text_translating(event, context):
+    print("text_translating")
     print(event)
     print(context)
     return True

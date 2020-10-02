@@ -1,6 +1,6 @@
 // import * as cdk from '@aws-cdk/core';
 import {AuthorizationType, LambdaIntegration, RestApi} from "@aws-cdk/aws-apigateway";
-import {Code, EventInvokeConfig, Function, FunctionProps, IDestination, Runtime} from "@aws-cdk/aws-lambda";
+import {Code, EventInvokeConfig, Function, FunctionProps, IDestination, IFunction, Runtime} from "@aws-cdk/aws-lambda";
 import {Bucket} from "@aws-cdk/aws-s3";
 import {Aws, CfnOutput, Construct, Duration, SecretValue, Stack, StackProps, Stage, StageProps} from '@aws-cdk/core';
 import * as codepipeline from '@aws-cdk/aws-codepipeline';
@@ -13,7 +13,7 @@ import {Queue} from "@aws-cdk/aws-sqs";
 import {SqsDestination} from "@aws-cdk/aws-s3-notifications"
 import {PolicyStatement} from "@aws-cdk/aws-iam";
 import * as sns from '@aws-cdk/aws-sns';
-import {SnsDestination} from "@aws-cdk/aws-lambda-destinations";
+import {LambdaDestination, SnsDestination} from "@aws-cdk/aws-lambda-destinations";
 import {LambdaSubscription} from "@aws-cdk/aws-sns-subscriptions";
 
 export class PsrStack extends Stack {
@@ -89,7 +89,8 @@ export class PsrApplicationStack extends Stack {
 
         this.initUploadStack();
         this.initFaceDetection();
-        this.initTextProcessing();
+        const textLambda = this.initTextTranslation();
+        this.initTextProcessing(textLambda);
     }
 
     initResources(): Resources {
@@ -125,29 +126,13 @@ export class PsrApplicationStack extends Stack {
 
     initFaceDetection() {
         const f_facedetection = new Function(this, "FaceDetectionLambda",
-            {
-                code: this.res.code,
-                handler: "psr.face_detection",
-                runtime: Runtime.PYTHON_3_7,
-                memorySize: 128,
-                // onSuccess: new SnsDestination(this.res.topic),
-                // onFailure: new SnsDestination(this.res.topic),
-                environment: this.env,
-
-            }
-            // this.lambdaProps(this.res.code, "psr.face_detection", this.env, new SnsDestination(this.res.topic))
-        );
-        // f_facedetection.
+            this.lambdaProps(this.res.code, "psr.face_detection", this.env));
         f_facedetection.addEventSource(new SqsEventSource(this.res.queue, {batchSize: 1}))
-        this.res.table.grantReadWriteData(f_facedetection);
         f_facedetection.addToRolePolicy(new PolicyStatement({
             actions: ["rekognition:DetectFaces"],
             resources: ["*"]
         }));
-        // f_facedetection.addToRolePolicy(new PolicyStatement({
-        //     actions: ["sns:Publish"],
-        //     resources: ["*"]
-        // }));
+        this.res.table.grantReadWriteData(f_facedetection);
         this.res.topic.grantPublish(f_facedetection);
         new EventInvokeConfig(this, 'SnsPublish', {
             function: f_facedetection,
@@ -156,13 +141,30 @@ export class PsrApplicationStack extends Stack {
         });
     }
 
-    initTextProcessing() {
-        // new SnsDestination()
-        const f_textProcessing = new Function(this, "TextProcessingLambda", this.lambdaProps(this.res.code, "psr.text_processing", this.env));
+    initTextTranslation(): IFunction {
+        const f_textTranslating = new Function(this, "TextTranslationLambda",
+            this.lambdaProps(this.res.code, "psr.text_translating", this.env));
+        this.res.table.grantReadWriteData(f_textTranslating);
+        f_textTranslating.addToRolePolicy(new PolicyStatement({
+            actions: [
+                "translate:*",
+                "comprehend:DetectDominantLanguage"
+            ],
+            resources: ["*"]
+        }))
 
-        // f_textProcessing.addEventSource()
+        return f_textTranslating;
+    }
+
+    initTextProcessing(translateFunction: IFunction) {
+        const f_textProcessing = new Function(this, "TextProcessingLambda",
+            this.lambdaProps(this.res.code, "psr.text_processing", this.env, new LambdaDestination(translateFunction)));
         this.res.topic.addSubscription(new LambdaSubscription(f_textProcessing));
         this.res.table.grantReadWriteData(f_textProcessing);
+        f_textProcessing.addToRolePolicy(new PolicyStatement({
+            actions: ["rekognition:DetectText"],
+            resources: ["*"]
+        }))
     }
 }
 

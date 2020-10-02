@@ -130,8 +130,8 @@ export class PsrApplicationStack extends Stack {
                 handler: "psr.face_detection",
                 runtime: Runtime.PYTHON_3_7,
                 memorySize: 128,
-                onSuccess: new SnsDestination(this.res.topic),
-                onFailure: new SnsDestination(this.res.topic),
+                // onSuccess: new SnsDestination(this.res.topic),
+                // onFailure: new SnsDestination(this.res.topic),
                 environment: this.env,
 
             }
@@ -144,16 +144,16 @@ export class PsrApplicationStack extends Stack {
             actions: ["rekognition:DetectFaces"],
             resources: ["*"]
         }));
-        f_facedetection.addToRolePolicy(new PolicyStatement({
-            actions: ["sns:Publish"],
-            resources: ["*"]
-        }));
+        // f_facedetection.addToRolePolicy(new PolicyStatement({
+        //     actions: ["sns:Publish"],
+        //     resources: ["*"]
+        // }));
         this.res.topic.grantPublish(f_facedetection);
-        // new EventInvokeConfig(this, 'SnsPublish', {
-        //     function: f_facedetection,
-        //     onSuccess: new SnsDestination(this.res.topic),
-        //     onFailure: new SnsDestination(this.res.topic)
-        // });
+        new EventInvokeConfig(this, 'SnsPublish', {
+            function: f_facedetection,
+            onSuccess: new SnsDestination(this.res.topic),
+            onFailure: new SnsDestination(this.res.topic)
+        });
     }
 
     initTextProcessing() {

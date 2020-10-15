@@ -172,21 +172,12 @@ export class PsrApplicationStack extends Stack {
         const f_getAll = new Function(this, "GetAllLambda",
             this.lambdaProps(this.res.code, "psr.get_all", this.env));
 
-        const f_getOne = new Function(this, "GetOneLambda",
-            this.lambdaProps(this.res.code, "psr.get_one", this.env));
-
         this.res.table.grantReadData(f_getAll);
-        this.res.table.grantReadData(f_getOne);
 
         const res_get = this.res.api.root.addResource('items')
         res_get.addMethod('GET', new LambdaIntegration(f_getAll), {
             authorizationType: AuthorizationType.NONE
         })
-        const res_get_one = res_get.addResource("{item}")
-        res_get_one.addMethod("GET", new LambdaIntegration(f_getOne), {
-            authorizationType: AuthorizationType.NONE
-        })
-
     }
 }
 

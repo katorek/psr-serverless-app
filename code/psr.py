@@ -19,7 +19,7 @@ translate = boto3.client(service_name='translate', use_ssl=True)
 table = dynamodb.Table(os.getenv("Table"))
 
 text_recognition_confidence = 70
-emotions_threshold = 0.5
+emotions_threshold = 60
 confidence = {
     'Smile': 80.0,
     'Gender': 80.0,
@@ -31,10 +31,6 @@ confidence = {
 def get_public_url(bucket, key):
     return "https://s3.us-east-1.amazonaws.com/{}/{}".format(bucket, key)
 
-
-def get_one(event, context):
-    print(event)
-    return True
 
 def get_all(event, context):
     items = table.scan()["Items"]

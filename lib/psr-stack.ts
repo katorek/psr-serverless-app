@@ -87,6 +87,7 @@ export class PsrApplicationStack extends Stack {
 
         this.res.bucket.addObjectCreatedNotification(new SqsDestination(this.res.queue));
 
+        this.initDynamoDBEndpoints();
         this.initUploadStack();
         this.initFaceDetection();
         const textLambda = this.initTextTranslation();

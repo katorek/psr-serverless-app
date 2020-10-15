@@ -120,9 +120,6 @@ def face_detection(event, context):
                 bucket = i["s3"]["bucket"]["name"]
                 key = i["s3"]["object"]["key"]
 
-
-                try:
-
                 result = rekog.detect_faces(
                     Image={'S3Object': {'Bucket': bucket, 'Name': key}},
                     Attributes=['ALL']

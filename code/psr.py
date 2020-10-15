@@ -8,6 +8,7 @@ import uuid
 bucket = os.getenv("Bucket")
 topicArn = os.getenv('TopicArn')
 
+translate = boto3.client('translate')
 comprehend = boto3.client('comprehend')
 s3client = boto3.client("s3")
 dynamodb = boto3.resource("dynamodb")
@@ -17,7 +18,7 @@ translate = boto3.client(service_name='translate', use_ssl=True)
 
 table = dynamodb.Table(os.getenv("Table"))
 
-text_recognition_confidence = 0.7
+text_recognition_confidence = 70
 emotions_threshold = 0.5
 confidence = {
     'Smile': 80.0,
@@ -29,6 +30,20 @@ confidence = {
 
 def get_public_url(bucket, key):
     return "https://s3.us-east-1.amazonaws.com/{}/{}".format(bucket, key)
+
+
+def get_one(event, context):
+    print(event)
+    return True
+
+def get_all(event, context):
+    items = table.scan()["Items"]
+    print(event)
+    print(items)
+    return {
+        "body": json.dumps(items),
+        "statusCode": 200
+    }
 
 
 def upload(event, context):
@@ -105,6 +120,9 @@ def face_detection(event, context):
                 bucket = i["s3"]["bucket"]["name"]
                 key = i["s3"]["object"]["key"]
 
+
+                try:
+
                 result = rekog.detect_faces(
                     Image={'S3Object': {'Bucket': bucket, 'Name': key}},
                     Attributes=['ALL']
@@ -130,7 +148,7 @@ def face_detection(event, context):
                 r = sns.publish(
                     TopicArn=topicArn,
                     Message=json.dumps({
-                        "Topic": topic,
+                        "Topic": topicArn,
                         "Key": key,
                         "Bucket": bucket
                     })
@@ -145,24 +163,30 @@ def face_detection(event, context):
 
 def text_processing(event, context):
     def getText(textDetection):
-        if textDetection['Type'] == 'Line' and textDetection['Confidence'] > text_recognition_confidence:
-            return textDetection['DetectedText']
-        return None
+        if textDetection["Type"] == 'LINE' and textDetection["Confidence"] > text_recognition_confidence:
+            return textDetection["DetectedText"] + '. '
+        return ''
 
-    for j in event["Records"]:
-        records = json.loads(j["body"])
-        print('"records:" {}'.format(records))
-        for i in records["Records"]:
-            bucket = i["s3"]["bucket"]["name"]
-            key = i["s3"]["object"]["key"]
+    output = ''
+    outputKey = ''
+
+    for e in event["Records"]:
+        try:
+            sns = e["Sns"]
+            snsMessage = json.loads(sns["Message"])
+            key = snsMessage["Key"]
+            outputKey = key
+            bucket = snsMessage["Bucket"]
 
             textDetections = rekog.detect_text(
                 Image={'S3Object': {'Bucket': bucket, 'Name': key}}
             )
 
             result=''
-            for t in textDetections:
-                result += getText(t) + ' '
+            for t in textDetections["TextDetections"]:
+                result += getText(t)
+
+            output += result
 
             table.update_item(
                 Key={
@@ -177,11 +201,48 @@ def text_processing(event, context):
                     "#s": "ImageText"
                 }
             )
+        except KeyError as err:
+                print("Error: {}".format(err))
 
-    return True
+    return json.dumps({
+        "text": output,
+        "key": outputKey
+    })
+
+supported_langauges=[
+    "pl",
+    "en",
+    "ru"
+]
 
 def text_translating(event, context):
-    print("text_translating")
     print(event)
-    print(context)
+    j = json.loads(event["responsePayload"])
+    print(j)
+    text = j["text"]
+    key = j["key"]
+
+    langReponse = comprehend.detect_dominant_language(Text=text)
+    inputLang = langReponse["Languages"][0]["LanguageCode"]
+
+    result = {}
+    for lang in supported_langauges:
+        translation = translate.translate_text(Text=text, SourceLanguageCode=inputLang, TargetLanguageCode=lang)
+        result[lang] = translation.get('TranslatedText')
+
+
+    table.update_item(
+        Key={
+            "ID": key
+        },
+        UpdateExpression="set #s = :r, ProcessStage = :s",
+        ExpressionAttributeValues={
+            ":r": result,
+            ":s": "4 -> text_translated",
+        },
+        ExpressionAttributeNames={
+            "#s": "Translations"
+        }
+    )
+
     return True
